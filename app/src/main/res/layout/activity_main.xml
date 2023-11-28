@@ -19,6 +19,19 @@
     android:layout_height="match_parent"
     tools:context=".HelloGeoActivity">
 
+  <androidx.appcompat.widget.AppCompatButton
+      android:id="@+id/eraseButton"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="Очистить все"/>
+
+  <androidx.appcompat.widget.AppCompatButton
+      android:id="@+id/currentMarkerButton"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_below="@id/eraseButton"
+      android:text="Добавить маркер"/>
+
   <android.opengl.GLSurfaceView
       android:id="@+id/surfaceview"
       android:layout_width="fill_parent"

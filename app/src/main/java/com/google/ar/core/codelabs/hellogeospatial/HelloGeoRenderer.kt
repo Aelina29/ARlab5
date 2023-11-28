@@ -21,6 +21,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.gms.maps.model.LatLng
 import com.google.ar.core.Anchor
+import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import com.google.ar.core.examples.java.common.helpers.DisplayRotationHelper
 import com.google.ar.core.examples.java.common.helpers.TrackingStateHelper
@@ -32,13 +33,16 @@ import com.google.ar.core.examples.java.common.samplerender.Texture
 import com.google.ar.core.examples.java.common.samplerender.arcore.BackgroundRenderer
 import com.google.ar.core.exceptions.CameraNotAvailableException
 import java.io.IOException
+import kotlin.math.sqrt
 
 
 class HelloGeoRenderer(val activity: HelloGeoActivity) :
   SampleRender.Renderer, DefaultLifecycleObserver {
+  private val earthAnchors = mutableListOf<Anchor>()
   //<editor-fold desc="ARCore initialization" defaultstate="collapsed">
   companion object {
     val TAG = "HelloGeoRenderer"
+    private val MAX_RENDER_DISTANCE = 5 //отсечение
 
     private val Z_NEAR = 0.1f
     private val Z_FAR = 1000f
@@ -87,12 +91,14 @@ class HelloGeoRenderer(val activity: HelloGeoActivity) :
       virtualObjectTexture =
         Texture.createFromAsset(
           render,
-          "models/spatial_marker_baked.png",
+          //"models/spatial_marker_baked.png", //image png
+          "models/Katarina.png", //image png
           Texture.WrapMode.CLAMP_TO_EDGE,
           Texture.ColorFormat.SRGB
         )
 
-      virtualObjectMesh = Mesh.createFromAsset(render, "models/geospatial_marker.obj");
+      //virtualObjectMesh = Mesh.createFromAsset(render, "models/geospatial_marker.obj"); //object obj
+      virtualObjectMesh = Mesh.createFromAsset(render, "models/model.obj"); //object obj
       virtualObjectShader =
         Shader.createFromAssets(
           render,
@@ -117,6 +123,15 @@ class HelloGeoRenderer(val activity: HelloGeoActivity) :
 
   override fun onDrawFrame(render: SampleRender) {
     val session = session ?: return
+
+    activity.view.eraseButton.setOnClickListener {
+      earthAnchors.forEach { it.detach() }
+      earthAnchors.clear()
+      activity.view.mapView?.clearMarkers()
+    }
+    activity.view.currentMarkerButton.setOnClickListener {
+      setMarkerOnCurrentLocation()
+    }
 
     //<editor-fold desc="ARCore frame boilerplate" defaultstate="collapsed">
     // Texture names should only be set once on a GL thread unless they change. This is done during
@@ -175,22 +190,91 @@ class HelloGeoRenderer(val activity: HelloGeoActivity) :
     render.clear(virtualSceneFramebuffer, 0f, 0f, 0f, 0f)
     //</editor-fold>
 
-    // TODO: Obtain Geospatial information and display it on the map.
+    val earth = session.earth
+    if (earth?.trackingState == TrackingState.TRACKING) {
+      val cameraGeospatialPose = earth.cameraGeospatialPose
+      activity.view.mapView?.updateMapPosition(
+        latitude = cameraGeospatialPose.latitude,
+        longitude = cameraGeospatialPose.longitude,
+        heading = cameraGeospatialPose.heading
+      )
+    }
+
 
     // Draw the placed anchor, if it exists.
-    earthAnchor?.let {
-      render.renderCompassAtAnchor(it)
+//    earthAnchor?.let {
+//      render.renderCompassAtAnchor(it)
+//    }
+    val earthAnchorsCopy = ArrayList(earthAnchors)
+    for (earthAnchor in earthAnchorsCopy) {
+      val anchorPose = earthAnchor.pose
+      val cameraPose = camera.pose
+      val distance = calculateDistanceBetweenCameraAndAnchor(anchorPose,cameraPose)
+      Log.i("aelina","${distance}")
+      if (distance <= MAX_RENDER_DISTANCE) {
+        render.renderCompassAtAnchor(earthAnchor)
+      }
     }
 
     // Compose the virtual scene with the background.
     backgroundRenderer.drawVirtualScene(render, virtualSceneFramebuffer, Z_NEAR, Z_FAR)
   }
 
-  var earthAnchor: Anchor? = null
+//  var earthAnchor: Anchor? = null
+  private fun setMarkerOnCurrentLocation() {
+    val current = activity.view.getCurrentCameraPosition() ?: return
+    makeNewMarkerAndAnchor(current)
+  }
 
   fun onMapClick(latLng: LatLng) {
-    // TODO: place an anchor at the given position.
+    makeNewMarkerAndAnchor(latLng)
   }
+
+  private fun makeNewMarkerAndAnchor(latLng: LatLng){
+    val earth = session?.earth ?: return
+    if (earth.trackingState != TrackingState.TRACKING) {
+      return
+    }
+    // Place the earth anchor at the same altitude as that of the camera to make it easier to view.
+    val altitude = earth.cameraGeospatialPose.altitude - 1
+    // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
+    val qx = 0f
+    val qy = 0f
+    val qz = 0f
+    val qw = 1f
+    val  newEarthAnchor =
+      earth.createAnchor(latLng.latitude, latLng.longitude, altitude, qx, qy, qz, qw)
+    earthAnchors.add(newEarthAnchor)
+
+    activity.view.mapView?.addMarker(latLng,true)
+  }
+  private fun calculateDistanceBetweenCameraAndAnchor(point1: Pose, point2: Pose): Double {
+    val dx = point1.tx() - point2.tx()
+    // val dy = point1.ty() - point2.ty()
+    val dz = point1.tz() - point2.tz()
+    return sqrt((dx * dx + dz * dz).toDouble())
+  }
+
+//  fun onMapClick(latLng: LatLng) {
+//    val earth = session?.earth ?: return
+//    if (earth.trackingState != TrackingState.TRACKING) {
+//      return
+//    }
+//    earthAnchor?.detach()
+//    // Place the earth anchor at the same altitude as that of the camera to make it easier to view.
+//    val altitude = earth.cameraGeospatialPose.altitude - 1
+//    // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
+//    val qx = 0f
+//    val qy = 0f
+//    val qz = 0f
+//    val qw = 1f
+//    earthAnchor =
+//      earth.createAnchor(latLng.latitude, latLng.longitude, altitude, qx, qy, qz, qw)
+//    activity.view.mapView?.earthMarker?.apply {
+//      position = latLng
+//      isVisible = true
+//    }
+//  }
 
   private fun SampleRender.renderCompassAtAnchor(anchor: Anchor) {
     // Get the current pose of the Anchor in world space. The Anchor pose is updated

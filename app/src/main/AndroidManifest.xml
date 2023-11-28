@@ -52,10 +52,11 @@
 
     <meta-data
         android:name="com.google.android.ar.API_KEY"
-        android:value="@string/GoogleCloudApiKey"/>
+        android:value="AIzaSyCNIFW9ENV_d416vtObxIK8Nw3B9cxCvqg"/>
+<!--        android:value="@string/GoogleCloudApiKey"/>-->
 
     <meta-data
         android:name="com.google.android.geo.API_KEY"
-        android:value="@string/GoogleCloudApiKey" />
+        android:value="AIzaSyCNIFW9ENV_d416vtObxIK8Nw3B9cxCvqg"/>
   </application>
 </manifest>
